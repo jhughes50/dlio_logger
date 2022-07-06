@@ -1,0 +1,10 @@
+<launch>
+
+    <node name="data_logger" pkg="dlio_logger" type="data_logger.py" output="screen" />
+    <rosparam file="$(find dlio_logger)/config/logger.yaml" />
+
+    <group ns="xsens">
+        <include file="$(find xsens_mti_driver)/launch/xsens_mti_node.launch"/>
+    </group>
+
+</launch>

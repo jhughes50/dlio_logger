@@ -1,6 +1,6 @@
 logger:
   name: "Archimedes"
-  logger_path: "/home/jason/arch_ws/src/dlio_logger/data/"
+  logger_path: "/home/nvidia/arch_ws/src/dlio_logger/data/"
   sample_rate: 30
   point_types:
     - 'id'
@@ -31,25 +31,22 @@ logger:
     - 25
     - 50
 
-xsens:
+external:
   use: True
   point_types:
-    - 'xs_linear_accel_x'
-    - 'xs_linear_accel_y'
-    - 'xs_linear_accel_z'
-    - 'xs_angular_vel_x'
-    - 'xs_angular_vel_y'
-    - 'xs_angular_vel_z'
-    - 'xs_orientation_x'
-    - 'xs_orientation_y'
-    - 'xs_orientation_z'
-    - 'xs_orientation_w'
-    - 'xs_accel_x'
-    - 'xs_accel_y'
-    - 'xs_accel_z'
-    - 'xs_mag_x'
-    - 'xs_mag_y'
-    - 'xs_mag_z'
-    - 'xs_roll'
-    - 'xs_pitch'
-    - 'xs_yaw'
+    - 'ex_linear_accel_x'
+    - 'ex_linear_accel_y'
+    - 'ex_linear_accel_z'
+    - 'ex_angular_vel_x'
+    - 'ex_angular_vel_y'
+    - 'ex_angular_vel_z'
+    - 'ex_orientation_x'
+    - 'ex_orientation_y'
+    - 'ex_orientation_z'
+    - 'ex_orientation_w'
+    - 'ex_mag_x'
+    - 'ex_mag_y'
+    - 'ex_mag_z'
+    - 'ex_roll'
+    - 'ex_pitch'
+    - 'ex_yaw'

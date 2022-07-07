@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Author: Jason Hughes
 Date: June 2022
@@ -7,6 +8,7 @@ Log IMU data from pixhawk and xsens to sqlite db
 import sqlite3
 import rospy
 import copy
+import os
 import pandas as pd
 from datetime import datetime
 from sensor_msgs.msg import Imu, MagneticField, FluidPressure
@@ -19,33 +21,34 @@ class DataBaseLogger():
     def __init__(self):
         dt = datetime.now()
         time_str = str(dt.month) +'_'+ str(dt.day)+'_'+str(dt.year)+'_'+str(dt.hour)+'_'+str(dt.minute)+'_'+str(dt.second)
+        self.system_name = os.getlogin()
         self.db_name = 'collection_'+time_str
         self.db_out = rospy.get_param('/logger/logger_path') + 'collection_'+time_str+'.db'
-        self.use_xsens = rospy.get_param('/xsens/use')
+        self.use_xsens = rospy.get_param('/external/use')
         
         self.windows = rospy.get_param('/logger/windows')
 
         if self.use_xsens:
-            self.data_points = rospy.get_param('/logger/point_types')+rospy.get_param('/xsens/point_types')
+            self.data_points = rospy.get_param('/logger/point_types')+rospy.get_param('/external/point_types')
         else:
             self.data_points = rospy.get_param('/logger/point_types')
         name = rospy.get_param('/logger/name')      
         self.attributes = copy.copy(self.data_points)
 
         self.generate_columns()
-
+        self.state = State()
         self.orientation = [] 
         self.angular_vel = [] 
         self.linear_accel = [] 
         self.mag_comp = [] 
-        self.xsens_orientation = []
-        self.xsens_angular_vel = []
-        self.xsens_linear_accel = []
-        self.xsens_accel = []
-        self.xsens_mag = []
+        self.external_orientation = []
+        self.external_angular_vel = []
+        self.external_linear_accel = []
+        self.external_accel = []
+        self.external_mag = []
         self.fluid_pressure = 0.0
         self.rpy = []
-        self.xsens_rpy = []
+        self.external_rpy = []
         self.pose = []
 
         self.data = pd.DataFrame(columns = self.attributes)
@@ -55,9 +58,8 @@ class DataBaseLogger():
         rospy.Subscriber('/mavros/imu/data_raw', Imu, self.imu_raw_cb)
         rospy.Subscriber('/mavros/imu/mag', MagneticField, self.mag_cb)
         rospy.Subscriber('/mavros/imu/static_pressure', FluidPressure, self.pressure_cb)
-        rospy.Subscriber('/xsens/imu/data', Imu,  self.xsens_imu_cb)
-        rospy.Subscriber('/xsens/imu/acceleration', Vector3Stamped, self.xsens_accel_cb)
-        rospy.Subscriber('/xsens/imu/mag', Vector3Stamped, self.xsens_mag_cb)
+        rospy.Subscriber('/imu/data', Imu,  self.external_imu_cb)
+        rospy.Subscriber('/mag', MagneticField, self.external_mag_cb)
         rospy.Subscriber('/vrpn_client_node/'+name+'/pose', PoseStamped, self.pose_cb)
         
         self.cycle()
@@ -89,7 +91,7 @@ class DataBaseLogger():
         
         
     def write(self):
-        self.data.to_csv('/home/jason/arch_ws/src/dlio_logger/data/test.csv', index=False)
+        self.data.to_csv('/home/'+self.system_name'/arch_ws/src/dlio_logger/data/test.csv', index=False)
         conn = sqlite3.connect(self.db_out)
         cur = conn.cursor()
         
@@ -103,18 +105,15 @@ class DataBaseLogger():
     def pose_cb(self, msg):
         self.pose = [msg.pose.position.x, msg.pose.position.y, msg.pose.position.z]
         
-    def xsens_mag_cb(self, msg):
-        self.xsens_mag = [msg.vector.x, msg.vector.y, msg.vector.z]
+    def external_mag_cb(self, msg):
+        self.external_mag = [msg.magnetic_field.x, msg.magnetic_field.y, msg.magnetic_field.z]
         
-    def xsens_imu_cb(self, msg):
-        self.xsens_orientation = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        self.xsens_angular_vel = [msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z]
-        self.xsens_linear_accel = [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]
-        self.xsens_rpy = list(euler_from_quaternion(self.xsens_orientation)) 
+    def external_imu_cb(self, msg):
+        self.external_orientation = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
+        self.external_angular_vel = [msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z]
+        self.external_linear_accel = [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z]
+        self.external_rpy = list(euler_from_quaternion(self.external_orientation)) 
 
-    def xsens_accel_cb(self, msg):
-        self.xsens_accel = [msg.vector.x, msg.vector.y, msg.vector.z]
-        
     def imu_cb(self, msg):
         self.imu = msg
         self.orientation = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
@@ -148,12 +147,11 @@ class DataBaseLogger():
                   +self.mag_comp
                   +[self.fluid_pressure]
                   +self.rpy
-                  +self.xsens_linear_accel
-                  +self.xsens_angular_vel
-                  +self.xsens_orientation
-                  +self.xsens_accel
-                  +self.xsens_mag
-                  +self.xsens_rpy)
+                  +self.external_linear_accel
+                  +self.external_angular_vel
+                  +self.external_orientation
+                  +self.external_mag
+                  +self.external_rpy)
         else:
             row = ([i]
                    +[rospy.get_time()]
@@ -190,8 +188,9 @@ class DataBaseLogger():
         iter = 0 
         rate = rospy.Rate(rospy.get_param('/logger/sample_rate'))
         j = 0
+        rospy.loginfo('waiting for data...')
         while j < 100:
-            rospy.loginfo('waiting for data')
+            
             j += 1
             rate.sleep()
             
